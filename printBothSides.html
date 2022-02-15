@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+    <script type="text/javascript" src="pdf-lib.js"></script>
+    <meta itemprop="name" content="Strains">
+    <meta charset="utf-8">
+    <style>
+        #drop {
+            width: 350px;
+            height: 70px;
+            padding: 10px;
+            border: 3px solid #000;
+            text-align: center;
+            vertical-align: center;
+            margin: auto;
+        }
+
+        body {
+            font-family: sans-serif;
+        }
+    </style>
+    <script>
+        downloadURL = function (data, fileName) {
+            var a;
+            a = document.createElement('a');
+            a.href = data;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.style = 'display: none';
+            a.click();
+            a.remove();
+        };
+
+        function downloadBlob(data, fileName, mimeType) {
+            var blob, url;
+            blob = new Blob([data], {
+                type: mimeType
+            });
+            url = window.URL.createObjectURL(blob);
+            downloadURL(url, fileName);
+            setTimeout(function () {
+                return window.URL.revokeObjectURL(url);
+            }, 1000);
+        };
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+        var handleDrop = async function (e) {
+            e.stopPropagation(); e.preventDefault();
+
+            const files = e.dataTransfer.files, f = files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const inDoc = await PDFLib.PDFDocument.load(data)
+                const printFirst = await PDFLib.PDFDocument.create();
+                const printSecond = await PDFLib.PDFDocument.create();
+                
+                const pages = inDoc.getPages();
+                const { width, height } = pages[0].getSize()
+
+                for (let i = 0; i < pages.length; i += 2) {
+                    let [the_page] = await printFirst.copyPages(inDoc, [i]);
+                    printFirst.addPage(the_page);
+                }
+                const pagesRest = pages.length % 2;
+                
+                // If the number of pages is not even we add an empty page at the begining of the
+                // second document.
+                
+                if (pagesRest==1){
+                    printSecond.addPage([width, height])
+                }
+
+                for (let i = pages.length - pagesRest; i > 0; i -= 2) {
+
+                    let [the_page] = await printSecond.copyPages(inDoc, [i]);
+                    console.log(the_page)
+                    printSecond.addPage(the_page);
+                }
+                
+                downloadBlob(await printFirst.save(), 'print_first.pdf', 'application/pdf');
+                downloadBlob(await printSecond.save(), 'print_second.pdf', 'application/pdf');
+            }
+            reader.readAsArrayBuffer(f);
+        }
+
+    </script>
+
+</head>
+
+<body>
+    <div id="drop" onDrop="handleDrop(event)" ondragover="allowDrop(event)">Drop the file here</div>
+    <table id="table"></table>
+</body>
+
+</html>
